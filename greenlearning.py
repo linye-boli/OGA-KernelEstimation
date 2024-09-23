@@ -1,24 +1,44 @@
 import os
+import argparse
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.nn.parameter import Parameter
-from rational import *
-import matplotlib.pyplot as plt
-import operator
-from functools import reduce
-from functools import partial
-from timeit import default_timer
-from utilities3 import *
-import scipy
-import random
-import multiprocessing
+from utils import relative_err
+from utils import init_records
+from utils import UnitGaussianNormalizer
+
+class Rational(torch.nn.Module):
+    """Rational Activation function.
+    It follows:
+    `f(x) = P(x) / Q(x),
+    where the coefficients of P and Q are initialized to the best rational 
+    approximation of degree (3,2) to the ReLU function
+    # Reference
+        - [Rational neural networks](https://arxiv.org/abs/2004.01902)
+    """
+    def __init__(self):
+        super().__init__()
+        self.coeffs = torch.nn.Parameter(torch.Tensor(4, 2))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.coeffs.data = torch.Tensor([[1.1915, 0.0],
+                                    [1.5957, 2.383],
+                                    [0.5, 0.0],
+                                    [0.0218, 1.0]])
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        self.coeffs.data[0,1].zero_()
+        exp = torch.tensor([3., 2., 1., 0.], device=input.device, dtype=input.dtype)
+        X = torch.pow(input.unsqueeze(-1), exp)
+        PQ = X @ self.coeffs
+        output = torch.div(PQ[..., 0], PQ[..., 1])
+        return output
 
 class GL(nn.Module):
-    def __init__(self, modes1, modes2,  width):
+    def __init__(self, inpDim):
         super(GL, self).__init__()
-        self.fc1 = nn.Linear(4,50)
+        self.fc1 = nn.Linear(inpDim,50)
         self.fc2 = nn.Linear(50,50)
         self.fc3 = nn.Linear(50,50)
         self.fc4 = nn.Linear(50,50)
@@ -40,181 +60,235 @@ class GL(nn.Module):
         x = self.fc5(x)
         return x
 
-def GL_main(save_index, ntrain):
-    
-    print("ntrain = %d, index = %d" %(ntrain, save_index))
-    ################################################################
-    # configs
-    ################################################################
-    TRAIN_PATH = '../data/train.mat'
-    TEST_PATH = '../data/test.mat'
-    
-    ntest = 200
-    
-    if ntrain >= 20:
-        batch_size = 20
-    else:
-        batch_size = ntrain
-    learning_rate = 0.001
-    
-    epochs = 2500
-    step_size = 100
-    gamma = 0.9
-    
-    modes = 12
-    width = 32
-    
-    s = 29
-    r = 15
-    
-    ################################################################
-    # load data and data normalization
-    ################################################################
-    reader = MatReader(TRAIN_PATH)
-    i_train = random.sample(range(1000), ntrain)
-    x_train = reader.read_field('force')[i_train,::r,::r][:,:s,:s]
-    y_train = reader.read_field('sol')[i_train,::r,::r][:,:s,:s]
+class GLFitter:
+    def __init__(
+            self,
+            X, fs, us, fTest, uTest, Gref=None, 
+            device=None):
+        
+        '''
+        X  : nPts x (nx + ny)
+        fs : nPts x nSample 
+        us : nPts x nSample 
+        Gref : nPts x nPts
+        '''
 
-    reader.load_file(TEST_PATH)
-    x_test = reader.read_field('force')[:ntest,::r,::r][:,:s,:s]
-    y_test = reader.read_field('sol')[:ntest,::r,::r][:,:s,:s]
-    
-    x_normalizer = UnitGaussianNormalizer(x_train)
-    x_train = x_normalizer.encode(x_train)
-    x_test = x_normalizer.encode(x_test)
-    
-    y_normalizer = UnitGaussianNormalizer(y_train)
-    y_train = y_normalizer.encode(y_train)
+        if X.shape[1] == 4:
+            area = np.pi 
+        else:
+            area = 1
 
-    grids = []
-    grid_all = np.linspace(0, 1, 421).reshape(421, 1).astype(np.float64)
-    grids.append(grid_all[::r,:])
-    grids.append(grid_all[::r,:])
-    grids.append(grid_all[::r,:])
-    grids.append(grid_all[::r,:])
-    grid = np.vstack([xx.ravel() for xx in np.meshgrid(*grids)]).T
-    grid = torch.tensor(grid, dtype=torch.float)
+        # dataset 
+        self.nyPts = fs.shape[0]
+        self.nxPts = us.shape[0]
+        self.h = area/self.nyPts
+        self.inpDim = X.shape[1]
+        self.X = X
+        self.fs = fs 
+        self.us = us 
+        self.fTest = fTest 
+        self.uTest = uTest
+        self.Gref = Gref
+
+        self.Gk = np.zeros((self.nxPts, self.nyPts))
+
+        # neural network
+        self.model = GL(self.inpDim)
+        print()
+        print("model structure")
+        print(self.model)
+        print()
+
+        # log 
+        self.Glog = []
+        self.utest_log = []
+        self.utrain_log = []
+        
+        # put to device 
+        self.device = device 
+        self.to_device()        
     
-    ################################################################
-    # training and evaluation
-    ################################################################
-    model = GL(modes, modes, width).cuda()
-    
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
-    
-    start_time = default_timer()
-    myloss = LpLoss(size_average=False)
-    
-    # Create tensors
-    x_train = x_train.reshape(ntrain, s**2)
-    x_test = x_test.reshape(ntest, s**2)
-    grid = grid.cuda()
-    
-    y_normalizer.cuda()
-    for ep in range(epochs):
-        x = x_train
-        y = y_train
-        x, y = x.cuda(), y.cuda()
-        curr_size = x.shape[0]
-        model.train()
-        t1 = default_timer()
-        train_l2 = 0
-        train_mse = 0
-        # Get G(x,y)
-        optimizer.zero_grad()
-        out = model(grid)
-        out = out.reshape(s**2,s**2)
-        # Multiply by f(y)
-        out = torch.matmul(x, out) * (1/s**2)
-        out = out.reshape(ntrain, s, s)
-        mse = F.mse_loss(out.reshape(ntrain, -1), y.reshape(ntrain, -1), reduction='mean')
-        mse.backward()
+    def to_device(self):
+        self.X = torch.from_numpy(self.X).float()
+        self.fs = torch.from_numpy(self.fs).float()
+        self.us = torch.from_numpy(self.us).float()
+        self.fTest = torch.from_numpy(self.fTest).float()
+        self.uTest = torch.from_numpy(self.uTest).float()
+
+        self.X = self.X.to(self.device)
+        self.fs = self.fs.to(self.device)
+        self.us = self.us.to(self.device)
+        self.fTest = self.fTest.to(self.device)
+        self.uTest = self.uTest.to(self.device)
+        self.model = self.model.to(self.device)
+
+    def optimize_adam(self, niter, lr=1e-3, dispstep=10):
+        self.opt_adam = torch.optim.Adam(self.model.parameters(), lr)
+        self.sch = torch.optim.lr_scheduler.MultiStepLR(optimizer=self.opt_adam, milestones=[1000, 3000], gamma=1)
+
+        print()
+        print("Adam optimization start")
+        print()
+
+        for k in range(niter):
+            self.model.train()
+            self.opt_adam.zero_grad()
+            Gk = self.model(self.X)
+            self.Gk = Gk.reshape(self.nxPts, self.nyPts)
+            utrain_Pred = self.h * self.Gk @ self.fs
+            loss = relative_err(utrain_Pred.T, self.us.T)
+            loss.backward()
+            self.opt_adam.step()
+            self.sch.step()
+
+            if self.Gref is not None:
+                Grl2 = relative_err(self.Gk.detach().cpu().reshape(-1,1).numpy(), self.Gref.reshape(-1,1))
+                self.Glog.append(Grl2)
+            else:
+                Grl2 = 1.0
+
+            self.model.eval()
+            with torch.no_grad():
+                Gk = self.model(self.X)
+            utest_Pred = self.h * self.Gk @ self.fTest
+            utrain_rl2 = relative_err(utrain_Pred.detach().T.cpu().numpy(), self.us.T.cpu().numpy())
+            utest_rl2 = relative_err(utest_Pred.detach().T.cpu().numpy(), self.uTest.T.cpu().numpy())
+
+            self.utest_log.append(utest_rl2)
+            self.utrain_log.append(utrain_rl2)
             
-        out = y_normalizer.decode(out)
-        y = y_normalizer.decode(y)
-        loss = myloss(out.reshape(ntrain,-1), y.reshape(ntrain,-1))
-        # loss.backward()
+            if k % dispstep == 0:
+                print('{:}th train url2 : {:.4e} - test url2 : {:.4e} - Grl2 : {:.4e} - learning rate : {:.4e}'.format(k, utrain_rl2, utest_rl2, Grl2, self.sch.get_last_lr()[0]))
+
+        print('{:}th url2 : {:.4e} - Grl2 : {:.4e}'.format(k, utest_rl2, Grl2))        
+
+        self.Gk = {"X": self.X.cpu().numpy(), "Gpred" : self.Gk.detach().cpu().numpy(), "Gref":self.Gref}
+        self.utest_Pred = utest_Pred.detach().cpu().numpy()
+        # self.model_weights = {"WB":self.WB.detach().cpu().numpy(), "Alpha":self.Alpha.detach().cpu().numpy()}
+        self.log = {"G_rl2" : np.array(self.Glog), "utest_rl2" : np.array(self.utest_log), "utrain_rl2" : np.array(self.utrain_log)}
+        # print(self.Alpha)
     
-        optimizer.step()
-        train_mse += mse.item()
-        train_l2 += loss.item()
-    
-        scheduler.step()
-    
-        model.eval()
-        with torch.no_grad():
-            x = x_test
-            y = y_test
-            x, y = x.cuda(), y.cuda()
+    def optimize_adam_batch(self, niter, lr=1e-3, dispstep=100):
+        self.opt_adam = torch.optim.Adam(self.model.parameters(), lr)
+   
+        print()
+        print("Adam optimization start")
+        print()
+
+        for k in range(niter):
+            self.opt_adam.zero_grad()
+            Gk = self.model(self.X)
+            self.Gk = Gk.reshape(self.nxPts, self.nyPts)
+            utrain_Pred = self.h * self.Gk @ self.fs
+            loss = relative_err(utrain_Pred.T, self.us.T)
+            loss.backward()
+            self.opt_adam.step()
+
+            if self.Gref is not None:
+                Grl2 = relative_err(self.Gk.detach().cpu().reshape(-1,1).numpy(), self.Gref.reshape(-1,1))
+                self.Glog.append(Grl2)
+            else:
+                Grl2 = 1.0
+
+            utest_Pred = self.h * self.Gk @ self.fTest
+            utrain_rl2 = relative_err(utrain_Pred.detach().T.cpu().numpy(), self.us.T.cpu().numpy())
+            utest_rl2 = relative_err(utest_Pred.detach().T.cpu().numpy(), self.uTest.T.cpu().numpy())
+
+            self.utest_log.append(utest_rl2)
+            self.utrain_log.append(utrain_rl2)
             
-            curr_size = x.shape[0]
-            out = model(grid)
-            out = out.reshape(s**2,s**2)
-            # Multiply by f(y)
-            out = torch.matmul(x, out) * (1/s**2)
-            out = out.reshape(curr_size, s, s)
-            out = y_normalizer.decode(out)
-            test_l2 = myloss(out.reshape(curr_size,-1), y.reshape(curr_size,-1)).item()
-    
-        #train_mse /= ntrain
-        train_l2/= ntrain
-        test_l2 /= ntest
-    
-        t2 = default_timer()
-        # print(ep, t2-t1, train_l2, test_l2)
-        if ep %10 == 0:
-            print("Epoch: %d, time: %.3f, Train Loss: %.3e, Train l2: %.4f, Test l2: %.4f" 
-                  % ( ep, t2-t1, train_mse, train_l2, test_l2) )
+            if k % dispstep == 0:
+                print('{:}th train url2 : {:.4e} - test url2 : {:.4e} - Grl2 : {:.4e}'.format(k, utrain_rl2, utest_rl2, Grl2))
 
-    elapsed = default_timer() - start_time
-    print("\n=============================")
-    print("Training done...")
-    print('Training time: %.3f'%(elapsed))
-    print("=============================\n")
-    
-    ################################################################
-    # testing
-    ################################################################
-    test_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(x_test, y_test), batch_size=1, shuffle=False)
-    
-    index = 0
-    t1 = default_timer()
-    test_l2 = 0
-    
-    with torch.no_grad():
-        out = model(grid)
-        out = out.reshape(s**2,s**2)
-        for x, y in test_loader:
-            x, y = x.cuda(), y.cuda()
-            # Multiply by f(y)
-            out_f = torch.matmul(x, out) * (1/s**2)
-            out_f = out_f.reshape(1, s, s)
-            out_f = y_normalizer.decode(out_f)
-    
-            test_l2 += np.linalg.norm(out_f.reshape(1, -1).cpu().numpy() 
-                                      - y.reshape(1, -1).cpu().numpy()) / np.linalg.norm(y.reshape(1, -1).cpu().numpy())
-            index = index + 1
-    t2 = default_timer()
-    testing_time = t2-t1
-     
-    test_l2 = test_l2/index
-    print("\n=============================")
-    print('Testing error: %.3e'%(test_l2))
-    print("=============================\n")
-    
-    with open('result_gl.csv','a+') as file:
-        file.write("%d,%d,%e"%(save_index, ntrain, test_l2))
-        file.write('\n')
+        print('{:}th url2 : {:.4e} - Grl2 : {:.4e}'.format(k, utest_rl2, Grl2))        
 
-if __name__ == "__main__":
-    # for nSample in [10, 50, 100]:
-    #     GL_main(1, nSample)
+        self.Gk = {"X": self.X.cpu().numpy(), "Gpred" : self.Gk.detach().cpu().numpy(), "Gref":self.Gref}
+        self.utest_Pred = utest_Pred.detach().cpu().numpy()
+        # self.model_weights = {"WB":self.WB.detach().cpu().numpy(), "Alpha":self.Alpha.detach().cpu().numpy()}
+        self.log = {"G_rl2" : np.array(self.Glog), "utest_rl2" : np.array(self.utest_log), "utrain_rl2" : np.array(self.utrain_log)}
+        # print(self.Alpha)
+    
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='OGA for kernel estimation')
+    parser.add_argument('--task', type=str, default='poisson1D',
+                        help='dataset name. (poisson1D, helmholtz1D, airy1D, poisson2D)')
+    parser.add_argument('--nIter', type=int, default=2000, 
+                        help='maximum number of neurons')
+    parser.add_argument('--nTrain', type=int, default=200, 
+                        help='number of training samples')
+    parser.add_argument('--nTest', type=int, default=200, 
+                        help='number of test samples')
+    parser.add_argument('--device', type=int, default=0,
+                        help='device id.')
+    args = parser.parse_args()
+    device = torch.device(f'cuda:{args.device}')
+    # device = torch.device('cpu')
+        
+    if args.task == 'poisson1D':
+        from utils import load_poisson1d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_poisson1d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'helmholtz1D':
+        from utils import load_helmholtz1d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz1d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'poisson2D':
+        from utils import load_poisson2d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'helmholtz2D':
+        from utils import load_helmholtz2d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'poisson2Dhdomain':
+        from utils import load_poisson2dhdomain_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2dhdomain_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'helmholtz2D':
+        from utils import load_helmholtz2d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'helmholtz2Dhdomain':
+        from utils import load_helmholtz2dhdomain_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2dhdomain_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'log3D':
+        from utils import load_log3d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_log3d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'logsin3D':
+        from utils import load_logsin3d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_logsin3d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'cos3D':
+        from utils import load_cos3d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos3d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'logcos3D':
+        from utils import load_logcos3d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_logcos3d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
 
-    multiprocessing.set_start_method('spawn')
-    N = np.floor(10**(np.linspace(np.log10(2),np.log10(10**3),20)))
-    for ntrain in N:
-        for run_index in range(10):
-            process_train = multiprocessing.Process(target=GL_main, args=(run_index, int(ntrain),))
-            process_train.start()
-            process_train.join()
+    # import pdb 
+    # pdb.set_trace()
+
+    model = GLFitter(X=X, 
+        fs=fTrain, us=uTrain, 
+        fTest=fTest, uTest=uTest, 
+        Gref=Gref, device=device)
+
+    # model train
+    if "3D" in args.task:
+        model.optimize_adam_batch(args.nIter)
+    elif "1D" in args.task:
+        model.optimize_adam(args.nIter)
+    elif "2D" in args.task:
+        model.optimize_adam(args.nIter)
+
+    # # save outputs
+    log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records('./results', args.task, 'gl-{:}-{:}'.format(args.nIter, args.nTrain))
+
+    np.save(log_outpath, model.log)
+    np.save(upred_outpath, model.utest_Pred)
+    np.save(Gpred_outpath, model.Gk)
+    # np.save(model_outpath, model.model_weights)

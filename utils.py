@@ -102,28 +102,51 @@ def LogKernel2D(xs, ys):
     Gref = np.log(a + b) / (4*np.pi)
     return Gref
 
+def CosineKernel3D(xs, ys, k=2):
+    X = np.c_[xs, ys]
+    a = (X[:,[0]] - X[:,[3]])**2
+    b = (X[:,[1]] - X[:,[4]])**2
+    c = (X[:,[2]] - X[:,[5]])**2
+    r = (a + b + c)**0.5
+    Gref = np.cos(k*np.pi*r)
+    print("estimate cos(r) kernel")
+    return Gref
+
 def LogKernel3D(xs, ys):
     X = np.c_[xs, ys]
     a = (X[:,[0]] - X[:,[3]])**2
     b = (X[:,[1]] - X[:,[4]])**2
     c = (X[:,[2]] - X[:,[5]])**2
     r = (a + b + c)**0.5
-    r[r== 0] = 1e-3
+
+    r[r== 0] = 0.03125
 
     Gref = np.log(r)
     print("estimate log(r) kernel")
     return Gref
 
-def LogSinKernel3D(xs, ys, k=5):
+def LogSinKernel3D(xs, ys, k=2):
     X = np.c_[xs, ys]
     a = (X[:,[0]] - X[:,[3]])**2
     b = (X[:,[1]] - X[:,[4]])**2
     c = (X[:,[2]] - X[:,[5]])**2
     r = (a + b + c)**0.5
-    r[r== 0] = 1e-3
+    r[r== 0] = 0.03125
 
     Gref = np.log(r) * np.sin(k*np.pi*r)
     print(f"estimate log(r)*sin(kr) kernel, k={k}")
+    return Gref
+
+def LogCosKernel3D(xs, ys, k=2):
+    X = np.c_[xs, ys]
+    a = (X[:,[0]] - X[:,[3]])**2
+    b = (X[:,[1]] - X[:,[4]])**2
+    c = (X[:,[2]] - X[:,[5]])**2
+    r = (a + b + c)**0.5
+    r[r== 0] = 0.03125
+
+    Gref = np.log(r) * np.cos(k*np.pi*r)
+    print(f"estimate log(r)*cos(kr) kernel, k={k}")
     return Gref
 
 def InvKernel3D(xs, ys):
@@ -133,7 +156,7 @@ def InvKernel3D(xs, ys):
     c = (X[:,[2]] - X[:,[5]])**2
     r = (a + b + c)**0.5
 
-    r[r== 0] = 1e-3
+    r[r== 0] = 0.03125
     
     Gref = -1/(4*np.pi*r)
     return Gref
@@ -202,8 +225,12 @@ def relative_err(u_est, u_ref):
     u_est = u_est.reshape(-1,1)
     u_ref = u_ref.reshape(-1,1)
 
-    dif_norm = np.linalg.norm(u_est - u_ref, ord=2)
-    ref_norm = np.linalg.norm(u_ref, 2)
+    if isinstance(u_est, np.ndarray):
+        dif_norm = np.linalg.norm(u_est - u_ref, ord=2)
+        ref_norm = np.linalg.norm(u_ref, 2)
+    else:
+        dif_norm = torch.linalg.norm(u_est - u_ref, ord=2)
+        ref_norm = torch.linalg.norm(u_ref, 2)
 
     return ((dif_norm) / (ref_norm)).mean() 
     # return dif_norm.mean()
@@ -551,8 +578,8 @@ def load_poisson1d_kernel_dataset(
 
     Gref = Gref.reshape(nxPts, nyPts)
     h = 1 / fTrain.shape[0]
-    # uTrain = h * Gref @ fTrain 
-    # uTest = h * Gref @ fTest
+    uTrain = h * Gref @ fTrain 
+    uTest = h * Gref @ fTest
 
     return fTrain, fTest, uTrain, uTest, X, Gref
 
@@ -673,6 +700,9 @@ def load_helmholtz1d_kernel_dataset(
     fs = scipy.io.loadmat(fs_path)['F'][::4]
     us = scipy.io.loadmat(us_path)['U'][::4]
 
+    if nTrain + nTest > 2000:
+         raise AssertionError("train set and test set has overlap")
+    
     fTrain = fs[:,:nTrain]
     fTest = fs[:,-nTest:]
     uTrain = us[:,:nTrain]
@@ -875,9 +905,9 @@ def load_helmholtz2dhdomain_kernel_dataset(
 def load_helmholtz3d_kernel_dataset(
         data_root, nTrain, nTest):
     
-    mesh_path = os.path.join(data_root, 'mesh3D_box.mat')
-    meshy_path = os.path.join(data_root, 'mesh3D_box.mat')
-    fs_path = os.path.join(data_root, 'dat3D_box.mat')
+    mesh_path = os.path.join(data_root, 'mesh3D_box_17.mat')
+    meshy_path = os.path.join(data_root, 'mesh3D_box_17.mat')
+    fs_path = os.path.join(data_root, 'mesh3D_box_17.mat')
     us_path = os.path.join(data_root, f'helmholtz3D_box.mat')
 
     xs = scipy.io.loadmat(mesh_path)['X']
@@ -969,6 +999,38 @@ def load_log3d_kernel_dataset(
 
     return fTrain, fTest, uTrain, uTest, X, Gref
 
+def load_cos3d_kernel_dataset(
+        data_root, nTrain, nTest):
+    
+    mesh_path = os.path.join(data_root, 'mesh3D_box_17.mat')
+    meshy_path = os.path.join(data_root, 'mesh3D_box_17.mat')
+    fs_path = os.path.join(data_root, 'dat3D_box_17_30k.mat')
+
+    xs = scipy.io.loadmat(mesh_path)['X']
+    ys = scipy.io.loadmat(meshy_path)['X']
+    fs = scipy.io.loadmat(fs_path)['F']
+
+    fTrain = fs[:,:nTrain]
+    fTest = fs[:,-nTest:]
+    
+    nxPts = xs.shape[0]
+    nyPts = ys.shape[0]
+    idx = np.arange(nxPts)
+    idy = np.arange(nyPts)
+    idxx, idyy = np.meshgrid(idx, idy)
+
+    xs = xs[idyy.reshape(-1)]
+    ys = ys[idxx.reshape(-1)]
+    X = np.c_[xs, ys]
+    Gref = CosineKernel3D(xs, ys).reshape(nxPts, nyPts)
+
+    h = 1 / fTrain.shape[0]
+    uTrain = h * Gref @ fTrain 
+    uTest = h * Gref @ fTest
+
+    return fTrain, fTest, uTrain, uTest, X, Gref
+
+
 def load_logsin3d_kernel_dataset(
         data_root, nTrain, nTest):
     
@@ -993,6 +1055,37 @@ def load_logsin3d_kernel_dataset(
     ys = ys[idxx.reshape(-1)]
     X = np.c_[xs, ys]
     Gref = LogSinKernel3D(xs, ys).reshape(nxPts, nyPts)
+
+    h = 1 / fTrain.shape[0]
+    uTrain = h * Gref @ fTrain 
+    uTest = h * Gref @ fTest
+
+    return fTrain, fTest, uTrain, uTest, X, Gref
+
+def load_logcos3d_kernel_dataset(
+        data_root, nTrain, nTest):
+    
+    mesh_path = os.path.join(data_root, 'mesh3D_box_17.mat')
+    meshy_path = os.path.join(data_root, 'mesh3D_box_17.mat')
+    fs_path = os.path.join(data_root, 'dat3D_box_17_30k.mat')
+
+    xs = scipy.io.loadmat(mesh_path)['X']
+    ys = scipy.io.loadmat(meshy_path)['X']
+    fs = scipy.io.loadmat(fs_path)['F']
+
+    fTrain = fs[:,:nTrain]
+    fTest = fs[:,-nTest:]
+    
+    nxPts = xs.shape[0]
+    nyPts = ys.shape[0]
+    idx = np.arange(nxPts)
+    idy = np.arange(nyPts)
+    idxx, idyy = np.meshgrid(idx, idy)
+
+    xs = xs[idyy.reshape(-1)]
+    ys = ys[idxx.reshape(-1)]
+    X = np.c_[xs, ys]
+    Gref = LogCosKernel3D(xs, ys).reshape(nxPts, nyPts)
 
     h = 1 / fTrain.shape[0]
     uTrain = h * Gref @ fTrain 
@@ -1246,39 +1339,43 @@ def load_helmimg2d_kernel_dataset(
     return fTrain, fTest, uTrain, uTest, X, Gref
 
 
-# class UnitGaussianNormalizer(object):
-#     def __init__(self, x, eps=0.00001):
-#         super(UnitGaussianNormalizer, self).__init__()
+class UnitGaussianNormalizer(object):
+    def __init__(self, x, eps=0.00001):
+        super(UnitGaussianNormalizer, self).__init__()
 
-#         # x could be in shape of ntrain*n or ntrain*T*n or ntrain*n*T
-#         self.mean = np.mean(x, 0)
-#         self.std = np.std(x, 0)
-#         self.eps = eps
+        # x could be in shape of ntrain*n or ntrain*T*n or ntrain*n*T
+        self.mean = torch.mean(x, 0)
+        self.std = torch.std(x, 0)
+        self.eps = eps
 
-#     def encode(self, x):
-#         x = (x - self.mean) / (self.std + self.eps)
-#         return x
+    def encode(self, x):
+        x = (x - self.mean) / (self.std + self.eps)
+        return x
 
-#     def decode(self, x, sample_idx=None):
-#         if sample_idx is None:
-#             std = self.std + self.eps # n
-#             mean = self.mean
-#         else:
-#             if len(self.mean.shape) == len(sample_idx[0].shape):
-#                 std = self.std[sample_idx] + self.eps  # batch*n
-#                 mean = self.mean[sample_idx]
-#             if len(self.mean.shape) > len(sample_idx[0].shape):
-#                 std = self.std[:,sample_idx]+ self.eps # T*batch*n
-#                 mean = self.mean[:,sample_idx]
+    def decode(self, x, sample_idx=None):
+        if sample_idx is None:
+            std = self.std + self.eps # n
+            mean = self.mean
+        else:
+            if len(self.mean.shape) == len(sample_idx[0].shape):
+                std = self.std[sample_idx] + self.eps  # batch*n
+                mean = self.mean[sample_idx]
+            if len(self.mean.shape) > len(sample_idx[0].shape):
+                std = self.std[:,sample_idx]+ self.eps # T*batch*n
+                mean = self.mean[:,sample_idx]
 
-#         # x is in shape of batch*n or T*batch*n
-#         x = (x * std) + mean
-#         return x
+        # x is in shape of batch*n or T*batch*n
+        x = (x * std) + mean
+        return x
 
-#     def cuda(self):
-#         self.mean = self.mean.cuda()
-#         self.std = self.std.cuda()
+    def to(self, device):
+        self.mean = self.mean.to(device)
+        self.std = self.std.to(device)
 
-#     def cpu(self):
-#         self.mean = self.mean.cpu()
-#         self.std = self.std.cpu()
+    def cuda(self):
+        self.mean = self.mean.cuda()
+        self.std = self.std.cuda()
+
+    def cpu(self):
+        self.mean = self.mean.cpu()
+        self.std = self.std.cpu()
