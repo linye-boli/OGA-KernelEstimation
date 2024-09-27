@@ -23,10 +23,6 @@ class ShallowOGAFitter:
         '''
 
         if X.shape[1] == 4:
-            # Rx = (X[:,[0]]**2 + X[:,[1]]**2) ** 0.5
-            # Ry = (X[:,[2]]**2 + X[:,[3]]**2) ** 0.5
-            # Dxy = ((X[:,[0]] - X[:,[2]])**2 + (X[:,[1]]-X[:,[3]])**2) ** 0.5
-            # X = np.c_[Rx, Ry, Dxy]
             area = np.pi 
         else:
             area = 1
@@ -247,6 +243,42 @@ if __name__ == '__main__':
         from utils import load_poisson2d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2d_kernel_dataset(
             data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'cos2D':
+        from utils import load_cos2d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=1)
+    elif args.task == 'cos2Dhdomain':
+        from utils import load_cos2dhdomain_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=1)
+    elif args.task == 'cos2D2pi':
+        from utils import load_cos2d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=2)
+    elif args.task == 'cos2D2pihdomain':
+        from utils import load_cos2dhdomain_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=2)
+    elif args.task == 'cos2D4pi':
+        from utils import load_cos2d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=4)
+    elif args.task == 'cos2D4pih':
+        from utils import load_cos2dhdomain_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=4)
+    elif args.task == 'cos2D4pihdomain':
+        from utils import load_cos2dhdomain_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=4)
+    elif args.task == 'cos2D8pi':
+        from utils import load_cos2d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=8)
+    elif args.task == 'cos2D8pihdomain':
+        from utils import load_cos2dhdomain_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=8)
     elif args.task == 'helmholtz2D':
         from utils import load_helmholtz2d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2d_kernel_dataset(
@@ -262,6 +294,10 @@ if __name__ == '__main__':
     elif args.task == 'helmholtz2Dhdomain':
         from utils import load_helmholtz2dhdomain_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2dhdomain_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'log2D':
+        from utils import load_log2d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_log2d_kernel_dataset(
             data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
     elif args.task == 'log3D':
         from utils import load_log3d_kernel_dataset

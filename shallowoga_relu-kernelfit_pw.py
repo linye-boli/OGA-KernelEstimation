@@ -230,6 +230,30 @@ if __name__ == '__main__':
         from utils import load_helmholtz1d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz1d_kernel_dataset(
             data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'cos2D2pi':
+        from utils import load_cos2d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=2)
+    elif args.task == 'cos2D2pihdomain':
+        from utils import load_cos2dhdomain_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=2)
+    elif args.task == 'cos2D4pi':
+        from utils import load_cos2d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=4)
+    elif args.task == 'cos2D4pihdomain':
+        from utils import load_cos2dhdomain_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=4)
+    elif args.task == 'cos2D8pi':
+        from utils import load_cos2d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=8)
+    elif args.task == 'cos2D8pihdomain':
+        from utils import load_cos2dhdomain_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=8)
     elif args.task == 'poisson2D':
         from utils import load_poisson2d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2d_kernel_dataset(
@@ -311,8 +335,8 @@ if __name__ == '__main__':
         if url2k > 1e-3:
             abnormals.append(Idx)
 
-        np.save(upred_outpath, utest_Pred)
-        np.save(Gpred_outpath, G)
+        # np.save(upred_outpath, utest_Pred)
+        # np.save(Gpred_outpath, G)
 
         print('Idx : {:} - url2k : {:.4e} - url2 : {:.4e} - Grl2 : {:.4e}'.format(Idx, url2k, url2, Grl2))  
     end_time = time.time()
@@ -321,8 +345,8 @@ if __name__ == '__main__':
     print(abnormals)
     Gpred = np.concatenate(G)
 
-    # # save outputs
-    # log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records('./results', args.task, 'ogapw-{:}-{:}-relu'.format(args.nNeuron, args.nTrain))
+    # save outputs
+    log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records('./results', args.task, 'ogapw-{:}-{:}-relu'.format(args.nNeuron, args.nTrain))
 
     # np.save(log_outpath, model.log)
     np.save(upred_outpath, utest_Pred)
