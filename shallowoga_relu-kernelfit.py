@@ -187,7 +187,12 @@ class ShallowOGAFitter:
             self.Gk = torch.einsum('k,kxy->xy', self.Alpha, gs)
 
             if self.Gref is not None:
-                Grl2 = relative_err(self.Gk.cpu().reshape(-1,1).numpy(), self.Gref.reshape(-1,1))
+                if np.isnan(self.Gref).sum()>0:
+                    Gref = self.Gref.reshape(-1)
+                    Gmask = ~np.isnan(Gref) & ~np.isinf(Gref)
+                    Grl2 = relative_err(self.Gk.cpu().reshape(-1,1).numpy()[Gmask], Gref[Gmask])
+                else:
+                    Grl2 = relative_err(self.Gk.cpu().reshape(-1,1).numpy(), self.Gref.reshape(-1,1))
                 self.Glog.append(Grl2)
             else:
                 Grl2 = 1.0

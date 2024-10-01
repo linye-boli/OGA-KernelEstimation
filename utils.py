@@ -37,7 +37,7 @@ def PoissonKernelDisk(xs, ys):
     c = (X[:,[0]]*X[:,[3]] - X[:,[2]]*X[:,[1]])**2
     d = (X[:,[0]]*X[:,[2]] + X[:,[3]]*X[:,[1]]-1)**2
     Gref = (0.25/np.pi) * (np.log(a + b) - np.log(c + d))
-    # Gref = np.log(c + d)
+
     return Gref
 
 def PoissonKernelFree(xs, ys):
@@ -111,7 +111,7 @@ def CosineKernel3D(xs, ys, k=2):
     c = (X[:,[2]] - X[:,[5]])**2
     r = (a + b + c)**0.5
     Gref = np.cos(k*np.pi*r)
-    print("estimate cos(r) kernel")
+    print(f"estimate cos(r) kernel, k={k}")
     return Gref
 
 def LogKernel3D(xs, ys):
@@ -862,6 +862,9 @@ def load_poisson2d_kernel_dataset(
     yys = ys[idxx.reshape(-1)]
     X = np.c_[xxs, yys]
     Gref = PoissonKernelDisk(xxs, yys).reshape(nxPts, nyPts)
+    # h = np.pi / fTrain.shape[0]
+    # uTrain = h * Gref @ fTrain 
+    # uTest = h * Gref @ fTest
 
     return fTrain, fTest, uTrain, uTest, X, Gref
 

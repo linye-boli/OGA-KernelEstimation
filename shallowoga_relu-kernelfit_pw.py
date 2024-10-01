@@ -230,6 +230,14 @@ if __name__ == '__main__':
         from utils import load_helmholtz1d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz1d_kernel_dataset(
             data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+    elif args.task == 'cos2D':
+        from utils import load_cos2d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=1)
+    elif args.task == 'cos2Dhdomain':
+        from utils import load_cos2dhdomain_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=1)
     elif args.task == 'cos2D2pi':
         from utils import load_cos2d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
@@ -322,7 +330,7 @@ if __name__ == '__main__':
 
         G[Idx] = model.Gk
 
-        if Gref is not None:
+        if 'cos' in args.task:
             Grl2 = relative_err(G[:Idx+1], Gref[:Idx+1])
         else:
             Grl2 = 1.0
