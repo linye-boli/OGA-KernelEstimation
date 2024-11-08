@@ -190,9 +190,6 @@ class ShallowOGAFitter:
         A = self.h * torch.einsum('kn,pn->kp', gsub, gsub)
         b = self.h * torch.einsum('kn,ns->ks', gsub, self.y)
 
-        # import pdb 
-        # pdb.set_trace()
-
         alpha_k = torch.linalg.solve(A, b)
         return alpha_k
 
