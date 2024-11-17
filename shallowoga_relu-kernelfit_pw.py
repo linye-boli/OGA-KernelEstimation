@@ -196,6 +196,16 @@ class ShallowOGAFitter:
             gs = gs.reshape(k+1, self.nxPts, self.nyPts)
             self.Gk = torch.einsum('k,kxy->xy', self.Alpha, gs)
 
+            # utrain_Pred = self.h * self.Gk @ self.fs
+            # utest_Pred = self.h * self.Gk @ self.fTest
+
+            # utrain_rl2 = relative_err(utrain_Pred.T.cpu().numpy(), self.us.T.cpu().numpy())
+            # utest_rl2 = relative_err(utest_Pred.T.cpu().numpy(), self.uTest.T.cpu().numpy())
+
+            # if k % 1 == 0:
+            #     print('{:}th train url2 : {:.4e} - test url2 : {:.4e}'.format(k, utrain_rl2, utest_rl2))
+
+
         self.Gk = self.Gk.cpu().numpy()
 
 
@@ -216,8 +226,17 @@ if __name__ == '__main__':
                         help='number of training samples')
     parser.add_argument('--nTest', type=int, default=200, 
                         help='number of test samples')
+    parser.add_argument('--res', type=int, default=20, 
+                        help='mesh density')
+    parser.add_argument('--nr', type=int, default=512, 
+                        help='mesh density')
+    parser.add_argument('--sigma', type=str, default='2e-1', 
+                        help='number of test samples')
+    parser.add_argument('--param', type=float, default=1,
+                        help='mesh density')
     parser.add_argument('--device', type=int, default=0,
                         help='device id.')
+    parser.add_argument("--mode", type=str, default='full')
     args = parser.parse_args()
     device = torch.device(f'cuda:{args.device}')
     # device = torch.device('cpu')
@@ -233,54 +252,42 @@ if __name__ == '__main__':
     elif args.task == 'cos2D':
         from utils import load_cos2d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=1)
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=args.param, res=args.res, sigma=args.sigma)
     elif args.task == 'cos2Dhdomain':
         from utils import load_cos2dhdomain_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=1)
-    elif args.task == 'cos2D2pi':
-        from utils import load_cos2d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=2)
-    elif args.task == 'cos2D2pihdomain':
-        from utils import load_cos2dhdomain_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=2)
-    elif args.task == 'cos2D4pi':
-        from utils import load_cos2d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=4)
-    elif args.task == 'cos2D4pihdomain':
-        from utils import load_cos2dhdomain_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=4)
-    elif args.task == 'cos2D8pi':
-        from utils import load_cos2d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=8)
-    elif args.task == 'cos2D8pihdomain':
-        from utils import load_cos2dhdomain_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=8)
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=args.param, res=args.res, sigma=args.sigma)
     elif args.task == 'poisson2D':
         from utils import load_poisson2d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
+        args.param = 'x'
     elif args.task == 'poisson2Dhdomain':
         from utils import load_poisson2dhdomain_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest,res=args.res, sigma=args.sigma)
+        args.param = 'x'
     elif args.task == 'helmholtz2D':
         from utils import load_helmholtz2d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
+        args.param = 'x'
     elif args.task == 'helmholtz2Dhdomain':
         from utils import load_helmholtz2dhdomain_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
+        args.param = 'x'
     elif args.task == 'helmholtz3D':
         from utils import load_helmholtz3d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz3d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
+    elif args.task == 'poisson3D':
+        from utils import load_poisson3d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_poisson3d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
+    elif args.task == 'helmholtz3D':
+        from utils import load_logsin3d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_logsin3d_kernel_dataset(
             data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
     elif args.task == 'inv3D':
         from utils import load_inv3d_kernel_dataset
@@ -289,7 +296,8 @@ if __name__ == '__main__':
     elif args.task == 'log3D':
         from utils import load_log3d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_log3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
+        args.param = 'x'
     elif args.task == 'logsin3D':
         from utils import load_logsin3d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_logsin3d_kernel_dataset(
@@ -297,12 +305,12 @@ if __name__ == '__main__':
     elif args.task == 'logcos3D':
         from utils import load_logcos3d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_logcos3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=args.param, res=args.res, sigma=args.sigma)
     elif args.task == 'cos3D':
         from utils import load_cos3d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_cos3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=args.param, res=args.res, sigma=args.sigma)
+        
     act = ReLUk(k=1)
     # act = ReLUk(k=4)
 
@@ -343,6 +351,9 @@ if __name__ == '__main__':
         if url2k > 1e-3:
             abnormals.append(Idx)
 
+        if args.mode == 'sub':
+            if Idx > 100:
+                break 
         # np.save(upred_outpath, utest_Pred)
         # np.save(Gpred_outpath, G)
 
@@ -354,7 +365,15 @@ if __name__ == '__main__':
     Gpred = np.concatenate(G)
 
     # save outputs
-    log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records('./results', args.task, 'ogapw-{:}-{:}-relu'.format(args.nNeuron, args.nTrain))
+    exp_nm = 'ogapw-{:}-{:}-{:}-{:}-{:}-{:}-relu'.format(args.nNeuron, args.nTrain, args.nr, args.res, args.param, args.sigma)
+    print(exp_nm)
+    if args.mode == 'sub':
+        exp_root = './results_sub'
+    else:
+        exp_root = './results'
+
+    log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records(
+            exp_root, args.task, exp_nm)
 
     # np.save(log_outpath, model.log)
     np.save(upred_outpath, utest_Pred)

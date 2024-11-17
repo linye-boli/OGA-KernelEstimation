@@ -71,7 +71,8 @@ def CosineKernel2D(xs, ys, n=1):
     X = np.c_[xs, ys]
     a = (X[:,[0]] - X[:,[2]])**2
     b = (X[:,[1]] - X[:,[3]])**2
-    Gref = np.cos(np.pi*n*(a + b)**0.5) #+ np.cos(np.pi * 5 * (a + b)**0.5)
+    r = (a + b)**0.5
+    Gref = np.cos(np.pi*n*r)
     return Gref
 
 def SineKernel2D(xs, ys, n=0.5):
@@ -86,12 +87,11 @@ def SineKernel2D(xs, ys, n=0.5):
 
 def GaussKernel2D(xs, ys, C=0.1):
     X = np.c_[xs, ys]
-    a = (X[:,[0]] - 0.5)**2
-    b = (X[:,[1]] - 0.5)**2
-    c = (X[:,[2]] - 0.5)**2
-    d = (X[:,[3]] - 0.5)**2
+    a = (X[:,[0]] - X[:,[2]])**2
+    b = (X[:,[1]] - X[:,[3]])**2
+    r = (a+b)**0.5
     
-    Gref = np.exp(-C*(a+b+c+d))
+    Gref = np.exp(-C*r)
     return Gref
 
 def LogKernel2D(xs, ys):
@@ -104,14 +104,14 @@ def LogKernel2D(xs, ys):
     Gref = np.log(r)
     return Gref
 
-def CosineKernel3D(xs, ys, k=2):
+def CosineKernel3D(xs, ys, n=2):
     X = np.c_[xs, ys]
     a = (X[:,[0]] - X[:,[3]])**2
     b = (X[:,[1]] - X[:,[4]])**2
     c = (X[:,[2]] - X[:,[5]])**2
     r = (a + b + c)**0.5
-    Gref = np.cos(k*np.pi*r)
-    print(f"estimate cos(r) kernel, k={k}")
+    Gref = np.cos(n*np.pi*r)
+    print(f"estimate cos(r) kernel, k={n}")
     return Gref
 
 def LogKernel3D(xs, ys):
@@ -127,7 +127,7 @@ def LogKernel3D(xs, ys):
     print("estimate log(r) kernel")
     return Gref
 
-def LogSinKernel3D(xs, ys, k=2):
+def LogSinKernel3D(xs, ys, n=2):
     X = np.c_[xs, ys]
     a = (X[:,[0]] - X[:,[3]])**2
     b = (X[:,[1]] - X[:,[4]])**2
@@ -135,8 +135,8 @@ def LogSinKernel3D(xs, ys, k=2):
     r = (a + b + c)**0.5
     r[r== 0] = 0.03125
 
-    Gref = np.log(r) * np.sin(k*np.pi*r)
-    print(f"estimate log(r)*sin(kr) kernel, k={k}")
+    Gref = np.log(r) * np.sin(n*np.pi*r)
+    print(f"estimate log(r)*sin(kr) kernel, k={n}")
     return Gref
 
 def LogCosKernel3D(xs, ys, k=2):
@@ -727,11 +727,15 @@ def load_helmholtz1d_kernel_dataset(
     return fTrain, fTest, uTrain, uTest, X, Gref
 
 def load_cos2d_kernel_dataset(
-        data_root, nTrain, nTest, n):
+        data_root, nTrain, nTest, n, res=20, sigma='2e-01'):
     
-    mesh_path = os.path.join(data_root, 'mesh2D_disk.mat')
-    meshy_path = os.path.join(data_root, 'mesh2D_disk.mat')
-    fs_path = os.path.join(data_root, 'dat2D_disk.mat')
+    mesh_path = os.path.join(data_root, 'mesh2D_disk_{:}.mat'.format(res))
+    meshy_path = os.path.join(data_root, 'mesh2D_disk_{:}.mat'.format(res))
+    fs_path = os.path.join(data_root, 'dat2D_disk_{:}_{:}.mat'.format(res, sigma))
+
+    print(f"load {mesh_path}")
+    print(f"load {fs_path}")
+    
     xs = scipy.io.loadmat(mesh_path)['X']
     ys = scipy.io.loadmat(meshy_path)['X']
     fs = scipy.io.loadmat(fs_path)['F']
@@ -759,11 +763,15 @@ def load_cos2d_kernel_dataset(
     return fTrain, fTest, uTrain, uTest, X, Gref
 
 def load_cos2dhdomain_kernel_dataset(
-        data_root, nTrain, nTest, n):
+        data_root, nTrain, nTest, n, res=30, sigma='2e-01'):
     
-    mesh_path = os.path.join(data_root, 'mesh2D_h.mat')
-    meshy_path = os.path.join(data_root, 'mesh2D_h.mat')
-    fs_path = os.path.join(data_root, 'dat2D_h.mat')
+    mesh_path = os.path.join(data_root, 'mesh2D_h_{:}.mat'.format(res))
+    meshy_path = os.path.join(data_root, 'mesh2D_h_{:}.mat'.format(res))
+    fs_path = os.path.join(data_root, 'dat2D_h_{:}_{:}.mat'.format(res, sigma))
+
+    print(f"load {mesh_path}")
+    print(f"load {fs_path}")
+
     xs = scipy.io.loadmat(mesh_path)['X']
     ys = scipy.io.loadmat(meshy_path)['X']
     fs = scipy.io.loadmat(fs_path)['F']
@@ -792,28 +800,30 @@ def load_cos2dhdomain_kernel_dataset(
     return fTrain, fTest, uTrain, uTest, X, Gref
 
 def load_gauss2d_kernel_dataset(
-        data_root, nTrain, nTest, c):
-    
-    mesh_path = os.path.join(data_root, 'mesh2D_disk.mat')
-    meshy_path = os.path.join(data_root, 'mesh2D_disk.mat')
-    fs_path = os.path.join(data_root, 'dat2D_disk.mat')
-    # us_path = os.path.join(data_root, f'poisson2D_disk.mat')
+        data_root, nTrain, nTest, c, res=20):
+
+    if res == 20:    
+        mesh_path = os.path.join(data_root, 'mesh2D_disk.mat')
+        meshy_path = os.path.join(data_root, 'mesh2D_disk.mat')
+        fs_path = os.path.join(data_root, 'dat2D_disk_varsigma.mat')
+    elif res == 30:
+        mesh_path = os.path.join(data_root, 'mesh2D_disk_30.mat')
+        meshy_path = os.path.join(data_root, 'mesh2D_disk_30.mat')
+        fs_path = os.path.join(data_root, 'dat2D_disk_30.mat')
+    elif res == 50:
+        mesh_path = os.path.join(data_root, 'mesh2D_disk_50.mat')
+        meshy_path = os.path.join(data_root, 'mesh2D_disk_50.mat')
+        fs_path = os.path.join(data_root, 'dat2D_disk_50.mat')
 
     xs = scipy.io.loadmat(mesh_path)['X']
     ys = scipy.io.loadmat(meshy_path)['X']
-    # ys = rotation(ys, 1)
-
     fs = scipy.io.loadmat(fs_path)['F']
-    # us = scipy.io.loadmat(us_path)['U']
-    # fs = (fs - fs.mean()) / fs.std()
 
     if nTrain + nTest > fs.shape[1]:
         raise AssertionError("train set and test set has overlap")
 
     fTrain = fs[:,:nTrain]
     fTest = fs[:,-nTest:]
-    # uTrain = us[:,:nTrain]
-    # uTest = us[:,-nTest:]
     
     nxPts = xs.shape[0]
     nyPts = ys.shape[0]
@@ -823,8 +833,8 @@ def load_gauss2d_kernel_dataset(
     xxs = xs[idyy.reshape(-1)]
     yys = ys[idxx.reshape(-1)]
     X = np.c_[xxs, yys]
-    Gref = GaussKernel2D(xxs, yys,c).reshape(nyPts, nxPts).T
-    # Gref = None
+    Gref = GaussKernel2D(xxs, yys,c).reshape(nyPts, nxPts).T 
+    # Gref = (Gref - Gref.mean())/(Gref.std())
 
     h = np.pi / fTrain.shape[0]
     uTrain = h * Gref @ fTrain 
@@ -833,12 +843,16 @@ def load_gauss2d_kernel_dataset(
     return fTrain, fTest, uTrain, uTest, X, Gref
 
 def load_poisson2d_kernel_dataset(
-        data_root, nTrain, nTest):
+        data_root, nTrain, nTest, res=20, sigma='2e-01'):
     
-    mesh_path = os.path.join(data_root, 'mesh2D_disk.mat')
-    meshy_path = os.path.join(data_root, 'mesh2D_disk.mat')
-    fs_path = os.path.join(data_root, 'dat2D_disk.mat')
-    us_path = os.path.join(data_root, f'poisson2D_disk.mat')
+    mesh_path = os.path.join(data_root, 'mesh2D_disk_{:}.mat'.format(res))
+    meshy_path = os.path.join(data_root, 'mesh2D_disk_{:}.mat'.format(res))
+    fs_path = os.path.join(data_root, 'dat2D_disk_{:}_{:}.mat'.format(res, sigma))
+    us_path = os.path.join(data_root, 'poisson2D_disk_{:}_{:}.mat'.format(res, sigma))
+
+    print(f"load {mesh_path}")
+    print(f"load {fs_path}")
+    print(f"load {us_path}")
 
     xs = scipy.io.loadmat(mesh_path)['X']
     ys = scipy.io.loadmat(meshy_path)['X']
@@ -862,19 +876,20 @@ def load_poisson2d_kernel_dataset(
     yys = ys[idxx.reshape(-1)]
     X = np.c_[xxs, yys]
     Gref = PoissonKernelDisk(xxs, yys).reshape(nxPts, nyPts)
-    # h = np.pi / fTrain.shape[0]
-    # uTrain = h * Gref @ fTrain 
-    # uTest = h * Gref @ fTest
 
     return fTrain, fTest, uTrain, uTest, X, Gref
 
 def load_poisson2dhdomain_kernel_dataset(
-        data_root, nTrain, nTest):
+        data_root, nTrain, nTest, res=30, sigma='2e-01'):
     
-    mesh_path = os.path.join(data_root, 'mesh2D_h.mat')
-    meshy_path = os.path.join(data_root, 'mesh2D_h.mat')
-    fs_path = os.path.join(data_root, 'dat2D_h.mat')
-    us_path = os.path.join(data_root, f'poisson2D_h.mat')
+    mesh_path = os.path.join(data_root, 'mesh2D_h_{:}.mat'.format(res))
+    meshy_path = os.path.join(data_root, 'mesh2D_h_{:}.mat'.format(res))
+    fs_path = os.path.join(data_root, 'dat2D_h_{:}_{:}.mat'.format(res, sigma))
+    us_path = os.path.join(data_root, 'poisson2D_h_{:}_{:}.mat'.format(res, sigma))
+
+    print(f"load {mesh_path}")
+    print(f"load {fs_path}")
+    print(f"load {us_path}")
 
     xs = scipy.io.loadmat(mesh_path)['X']
     ys = scipy.io.loadmat(meshy_path)['X']
@@ -901,50 +916,18 @@ def load_poisson2dhdomain_kernel_dataset(
 
     return fTrain, fTest, uTrain, uTest, X, Gref
 
-def load_poissonpacman_kernel_dataset(
-        data_root, nTrain, nTest, r=10):
-    
-    mesh_path = os.path.join(data_root, 'mesh2D_pacman.mat')
-    meshy_path = os.path.join(data_root, 'mesh2D_pacman.mat')
-    fs_path = os.path.join(data_root, 'dat2D_pacman.mat')
-    us_path = os.path.join(data_root, f'poisson2D_pacman.mat')
-
-    xs = scipy.io.loadmat(mesh_path)['X'][::r]
-    ys = scipy.io.loadmat(meshy_path)['X'][::r]
-    fs = scipy.io.loadmat(fs_path)['F'][::r]
-    us = scipy.io.loadmat(us_path)['U'][::r]
-
-    # fs = (fs - fs.mean()) / fs.std()
-
-    fTrain = fs[:,:nTrain]
-    fTest = fs[:,-nTest:]
-    uTrain = us[:,:nTrain]
-    uTest = us[:,-nTest:]
-    
-    nxPts = xs.shape[0]
-    nyPts = ys.shape[0]
-    idx = np.arange(nxPts)
-    idy = np.arange(nyPts)
-    idxx, idyy = np.meshgrid(idx, idy)
-    xxs = xs[idyy.reshape(-1)]
-    yys = ys[idxx.reshape(-1)]
-    X = np.c_[xxs, yys]
-    # Gref = PoissonKernelDisk(xxs, yys).reshape(nxPts, nyPts)#.T
-    Gref = None
-
-    h = np.pi / fTrain.shape[0]
-    # uTrain = h * Gref @ fTrain 
-    # uTest = h * Gref @ fTest
-
-    return fTrain, fTest, uTrain, uTest, X, Gref
 
 def load_helmholtz2d_kernel_dataset(
-        data_root, nTrain, nTest):
+        data_root, nTrain, nTest, res=20, sigma='2e-01'):
     
-    mesh_path = os.path.join(data_root, 'mesh2D_disk.mat')
-    meshy_path = os.path.join(data_root, 'mesh2D_disk.mat')
-    fs_path = os.path.join(data_root, 'dat2D_disk.mat')
-    us_path = os.path.join(data_root, f'helmholtz2D_disk.mat')
+    mesh_path = os.path.join(data_root, 'mesh2D_disk_{:}.mat'.format(res))
+    meshy_path = os.path.join(data_root, 'mesh2D_disk_{:}.mat'.format(res))
+    fs_path = os.path.join(data_root, 'dat2D_disk_{:}_{:}.mat'.format(res, sigma))
+    us_path = os.path.join(data_root, 'helmholtz2D_disk_{:}_{:}.mat'.format(res, sigma))
+
+    print(f"load {mesh_path}")
+    print(f"load {fs_path}")
+    print(f"load {us_path}")
 
     xs = scipy.io.loadmat(mesh_path)['X']
     ys = scipy.io.loadmat(meshy_path)['X']
@@ -969,12 +952,16 @@ def load_helmholtz2d_kernel_dataset(
     return fTrain, fTest, uTrain, uTest, X, Gref
 
 def load_helmholtz2dhdomain_kernel_dataset(
-        data_root, nTrain, nTest):
+        data_root, nTrain, nTest, res=30, sigma='2e-01'):
     
-    mesh_path = os.path.join(data_root, 'mesh2D_h.mat')
-    meshy_path = os.path.join(data_root, 'mesh2D_h.mat')
-    fs_path = os.path.join(data_root, 'dat2D_h.mat')
-    us_path = os.path.join(data_root, f'helmholtz2D_h.mat')
+    mesh_path = os.path.join(data_root, 'mesh2D_h_{:}.mat'.format(res))
+    meshy_path = os.path.join(data_root, 'mesh2D_h_{:}.mat'.format(res))
+    fs_path = os.path.join(data_root, 'dat2D_h_{:}_{:}.mat'.format(res, sigma))
+    us_path = os.path.join(data_root, 'helmholtz2D_h_{:}_{:}.mat'.format(res, sigma))
+
+    print(f"load {mesh_path}")
+    print(f"load {fs_path}")
+    print(f"load {us_path}")
 
     xs = scipy.io.loadmat(mesh_path)['X']
     ys = scipy.io.loadmat(meshy_path)['X']
@@ -999,17 +986,24 @@ def load_helmholtz2dhdomain_kernel_dataset(
     return fTrain, fTest, uTrain, uTest, X, Gref
 
 def load_helmholtz3d_kernel_dataset(
-        data_root, nTrain, nTest):
+        data_root, nTrain, nTest, res=15, sigma='5e-01'):
     
-    mesh_path = os.path.join(data_root, 'mesh3D_box_17.mat')
-    meshy_path = os.path.join(data_root, 'mesh3D_box_17.mat')
-    fs_path = os.path.join(data_root, 'mesh3D_box_17.mat')
-    us_path = os.path.join(data_root, f'helmholtz3D_box.mat')
-
+    mesh_path = os.path.join(data_root, 'mesh3D_box_{:}.mat'.format(res))
+    meshy_path = os.path.join(data_root, 'mesh3D_box_{:}.mat'.format(res))
+    fs_path = os.path.join(data_root, 'dat3D_box_{:}_{:}.mat'.format(res, sigma))
+    us_path = os.path.join(data_root, 'helmholtz3D_box_{:}_{:}.mat'.format(res, sigma))
+    
     xs = scipy.io.loadmat(mesh_path)['X']
     ys = scipy.io.loadmat(meshy_path)['X']
     fs = scipy.io.loadmat(fs_path)['F']
     us = scipy.io.loadmat(us_path)['U']
+
+    print(f"load {mesh_path}")
+    print(f"load {fs_path}")
+    print(f"load {us_path}")
+
+    if nTrain + nTest > fs.shape[1]:
+        raise AssertionError("train set and test set has overlap")
 
     fTrain = fs[:,:nTrain]
     fTest = fs[:,-nTest:]
@@ -1025,13 +1019,51 @@ def load_helmholtz3d_kernel_dataset(
     ys = ys[idxx.reshape(-1)]
     X = np.c_[xs, ys]
     Gref = None 
-    # Gref = PoissonKernelDisk(xs, ys).reshape(nxPts, nyPts).T
-
-    h = 1 / fTrain.shape[0]
-    # uTrain = h * Gref @ fTrain 
-    # uTest = h * Gref @ fTest
 
     return fTrain, fTest, uTrain, uTest, X, Gref
+
+def load_poisson3d_kernel_dataset(
+        data_root, nTrain, nTest, res=15, sigma='5e-01'):
+    
+    mesh_path = os.path.join(data_root, 'mesh3D_box_{:}.mat'.format(res))
+    meshy_path = os.path.join(data_root, 'mesh3D_box_{:}.mat'.format(res))
+    fs_path = os.path.join(data_root, 'dat3D_box_{:}_{:}.mat'.format(res, sigma))
+    us_path = os.path.join(data_root, 'poisson3D_box_{:}_{:}.mat'.format(res, sigma))
+
+    print(f"load {mesh_path}")
+    print(f"load {fs_path}")
+    print(f"load {us_path}")
+
+    xs = scipy.io.loadmat(mesh_path)['X']
+    ys = scipy.io.loadmat(meshy_path)['X']
+    fs = scipy.io.loadmat(fs_path)['F']
+    us = scipy.io.loadmat(us_path)['U']
+
+    if nTrain + nTest > fs.shape[1]:
+        raise AssertionError("train set and test set has overlap")
+
+    fTrain = fs[:,:nTrain]
+    fTest = fs[:,-nTest:]
+    uTrain = us[:,:nTrain]
+    uTest = us[:,-nTest:]
+    
+    fTrain = fs[:,:nTrain]
+    fTest = fs[:,-nTest:]
+    
+    nxPts = xs.shape[0]
+    nyPts = ys.shape[0]
+    idx = np.arange(nxPts)
+    idy = np.arange(nyPts)
+    idxx, idyy = np.meshgrid(idx, idy)
+
+    xs = xs[idyy.reshape(-1)]
+    ys = ys[idxx.reshape(-1)]
+    X = np.c_[xs, ys]
+
+    Gref = None
+
+    return fTrain, fTest, uTrain, uTest, X, Gref
+
 
 def load_inv3d_kernel_dataset(
         data_root, nTrain, nTest):
@@ -1065,11 +1097,11 @@ def load_inv3d_kernel_dataset(
     return fTrain, fTest, uTrain, uTest, X, Gref
 
 def load_log3d_kernel_dataset(
-        data_root, nTrain, nTest):
+        data_root, nTrain, nTest, res=17, sigma='5e-01'):
     
-    mesh_path = os.path.join(data_root, 'mesh3D_box_17.mat')
-    meshy_path = os.path.join(data_root, 'mesh3D_box_17.mat')
-    fs_path = os.path.join(data_root, 'dat3D_box_17_30k.mat')
+    mesh_path = os.path.join(data_root, f'mesh3D_box_{res}.mat')
+    meshy_path = os.path.join(data_root, f'mesh3D_box_{res}.mat')
+    fs_path = os.path.join(data_root, f'dat3D_box_{res}_{sigma}.mat')
 
     xs = scipy.io.loadmat(mesh_path)['X']
     ys = scipy.io.loadmat(meshy_path)['X']
@@ -1096,11 +1128,11 @@ def load_log3d_kernel_dataset(
     return fTrain, fTest, uTrain, uTest, X, Gref
 
 def load_cos3d_kernel_dataset(
-        data_root, nTrain, nTest):
+        data_root, nTrain, nTest, n=1, res=17, sigma='5e-01'):
     
-    mesh_path = os.path.join(data_root, 'mesh3D_box_17.mat')
-    meshy_path = os.path.join(data_root, 'mesh3D_box_17.mat')
-    fs_path = os.path.join(data_root, 'dat3D_box_17_30k.mat')
+    mesh_path = os.path.join(data_root, f'mesh3D_box_{res}.mat')
+    meshy_path = os.path.join(data_root, f'mesh3D_box_{res}.mat')
+    fs_path = os.path.join(data_root, f'dat3D_box_{res}_{sigma}.mat')
 
     xs = scipy.io.loadmat(mesh_path)['X']
     ys = scipy.io.loadmat(meshy_path)['X']
@@ -1118,7 +1150,7 @@ def load_cos3d_kernel_dataset(
     xs = xs[idyy.reshape(-1)]
     ys = ys[idxx.reshape(-1)]
     X = np.c_[xs, ys]
-    Gref = CosineKernel3D(xs, ys).reshape(nxPts, nyPts)
+    Gref = CosineKernel3D(xs, ys, n).reshape(nxPts, nyPts)
 
     h = 1 / fTrain.shape[0]
     uTrain = h * Gref @ fTrain 
@@ -1159,11 +1191,11 @@ def load_logsin3d_kernel_dataset(
     return fTrain, fTest, uTrain, uTest, X, Gref
 
 def load_logcos3d_kernel_dataset(
-        data_root, nTrain, nTest):
+        data_root, nTrain, nTest, n=1, res=17, sigma='5e-01'):
     
-    mesh_path = os.path.join(data_root, 'mesh3D_box_17.mat')
-    meshy_path = os.path.join(data_root, 'mesh3D_box_17.mat')
-    fs_path = os.path.join(data_root, 'dat3D_box_17_30k.mat')
+    mesh_path = os.path.join(data_root, f'mesh3D_box_{res}.mat')
+    meshy_path = os.path.join(data_root, f'mesh3D_box_{res}.mat')
+    fs_path = os.path.join(data_root, f'dat3D_box_{res}_{sigma}.mat')
 
     xs = scipy.io.loadmat(mesh_path)['X']
     ys = scipy.io.loadmat(meshy_path)['X']
@@ -1181,7 +1213,7 @@ def load_logcos3d_kernel_dataset(
     xs = xs[idyy.reshape(-1)]
     ys = ys[idxx.reshape(-1)]
     X = np.c_[xs, ys]
-    Gref = LogCosKernel3D(xs, ys).reshape(nxPts, nyPts)
+    Gref = LogCosKernel3D(xs, ys, n).reshape(nxPts, nyPts)
 
     h = 1 / fTrain.shape[0]
     uTrain = h * Gref @ fTrain 
@@ -1283,40 +1315,6 @@ def load_sine2d_kernel_dataset(
     ys = ys[idxx.reshape(-1)]
     X = np.c_[xs, ys]
     Gref = SineKernel2D(xs, ys).reshape(nxPts, nyPts)
-
-    h = np.pi / fTrain.shape[0]
-    uTrain = h * Gref @ fTrain 
-    uTest = h * Gref @ fTest
-
-    return fTrain, fTest, uTrain, uTest, X, Gref
-
-def load_gauss2d_kernel_dataset(
-        data_root, nTrain, nTest, res):
-    
-    mesh_path = os.path.join(data_root, 'mesh2D_{:}.mat'.format(res))
-    meshy_path = os.path.join(data_root, 'mesh2Dy_{:}.mat'.format(res))
-    fs_path = os.path.join(data_root, 'dat2Dy_{:}.mat'.format(res))
-    us_path = os.path.join(data_root, f'poisson2D_{res}.mat')
-
-    xs = scipy.io.loadmat(mesh_path)['X']
-    ys = scipy.io.loadmat(meshy_path)['Y']
-    fs = scipy.io.loadmat(fs_path)['Fy']
-    us = scipy.io.loadmat(us_path)['U']
-
-    fTrain = fs[:,:nTrain]
-    fTest = fs[:,-nTest:]
-    uTrain = us[:,:nTrain]
-    uTest = us[:,-nTest:]
-    
-    nxPts = xs.shape[0]
-    nyPts = ys.shape[0]
-    idx = np.arange(nxPts)
-    idy = np.arange(nyPts)
-    idxx, idyy = np.meshgrid(idx, idy)
-    xs = xs[idyy.reshape(-1)]
-    ys = ys[idxx.reshape(-1)]
-    X = np.c_[xs, ys]
-    Gref = GaussKernel2D(xs, ys).reshape(nxPts, nyPts)
 
     h = np.pi / fTrain.shape[0]
     uTrain = h * Gref @ fTrain 
