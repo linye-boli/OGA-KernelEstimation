@@ -541,12 +541,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='OGA for kernel estimation')
     parser.add_argument('--task', type=str, default='poisson1D',
                         help='dataset name. (poisson1D, helmholtz1D, airy1D, poisson2D)')
-    parser.add_argument('--nIter', type=int, default=2000, 
+    parser.add_argument('--nIter', type=int, default=500, 
                         help='maximum number of neurons')
     parser.add_argument('--nTrain', type=int, default=200, 
                         help='number of training samples')
     parser.add_argument('--nTest', type=int, default=200, 
                         help='number of test samples')
+    parser.add_argument('--res', type=int, default=20, 
+                        help='mesh density')
+    parser.add_argument('--sigma', type=str, default='2e-1', 
+                        help='number of test samples')
+    parser.add_argument('--param', type=float, default=1,
+                        help='mesh density')
     parser.add_argument('--device', type=int, default=0,
                         help='device id.')
     args = parser.parse_args()
@@ -561,43 +567,14 @@ if __name__ == '__main__':
         from utils import load_helmholtz1d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz1d_kernel_dataset(
             data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'poisson2D':
-        from utils import load_poisson2d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'helmholtz2D':
-        from utils import load_helmholtz2d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'poisson2Dhdomain':
-        from utils import load_poisson2dhdomain_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'helmholtz2D':
-        from utils import load_helmholtz2d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'helmholtz2Dhdomain':
-        from utils import load_helmholtz2dhdomain_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'log3D':
-        from utils import load_log3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_log3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'logsin3D':
-        from utils import load_logsin3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_logsin3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'cos3D':
-        from utils import load_cos3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_cos3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
     elif args.task == 'logcos3D':
         from utils import load_logcos3d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_logcos3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=args.param, res=args.res, sigma=args.sigma)
+    elif args.task == 'cos3D':
+        from utils import load_cos3d_kernel_dataset
+        fTrain, fTest, uTrain, uTest, X, Gref = load_cos3d_kernel_dataset(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=args.param, res=args.res, sigma=args.sigma)
     
     fTrain = fTrain.T[...,None]
     uTrain = uTrain.T[...,None]
@@ -610,7 +587,6 @@ if __name__ == '__main__':
         uTrain = uTrain.reshape(-1,17,17,17,1)
         uTest = uTest.reshape(-1,17,17,17,1)
 
-
     model = FNOFitter(
         X = X,
         fs=fTrain, us=uTrain, 
@@ -618,14 +594,17 @@ if __name__ == '__main__':
         bsz=20,
         device=device)
 
+    # save outputs
+    log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records('./results', args.task, 'fno-{:}-{:}-{:}-{:}'.format(args.nIter, args.nTrain, args.param, args.sigma))
+    if os.path.exists(upred_outpath):
+        print("********* ", args.task, "  ", upred_outpath, " file exists")
+        exit()
+
     # model train
-    # if "3D" in args.task:
-    model.optimize_adam_batch(args.nIter)
+    if "3D" in args.task:
+        model.optimize_adam_batch(args.nIter)
     # else:
     #     model.optimize_adam(args.nIter)
-
-    # # save outputs
-    log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records('./results', args.task, 'fno-{:}-{:}'.format(args.nIter, args.nTrain))
 
     np.save(log_outpath, model.log)
     np.save(upred_outpath, model.utest_Pred)

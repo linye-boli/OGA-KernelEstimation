@@ -141,11 +141,11 @@ class GLFitter:
             self.opt_adam.step()
             self.sch.step()
 
-            if self.Gref is not None:
-                Grl2 = relative_err(self.Gk.detach().cpu().reshape(-1,1).numpy(), self.Gref.reshape(-1,1))
-                self.Glog.append(Grl2)
-            else:
-                Grl2 = 1.0
+            # if self.Gref is not None:
+            #     Grl2 = relative_err(self.Gk.detach().cpu().reshape(-1,1).numpy(), self.Gref.reshape(-1,1))
+            #     self.Glog.append(Grl2)
+            # else:
+            Grl2 = 1.0
 
             self.model.eval()
             with torch.no_grad():
@@ -180,10 +180,12 @@ class GLFitter:
             Gk = self.model(self.X)
             self.Gk = Gk.reshape(self.nxPts, self.nyPts)
             utrain_Pred = self.h * self.Gk @ self.fs
+            import pdb 
+            pdb.set_trace()
             loss = relative_err(utrain_Pred.T, self.us.T)
             loss.backward()
             self.opt_adam.step()
-
+            
             if self.Gref is not None:
                 Grl2 = relative_err(self.Gk.detach().cpu().reshape(-1,1).numpy(), self.Gref.reshape(-1,1))
                 self.Glog.append(Grl2)
@@ -191,6 +193,7 @@ class GLFitter:
                 Grl2 = 1.0
 
             utest_Pred = self.h * self.Gk @ self.fTest
+
             utrain_rl2 = relative_err(utrain_Pred.detach().T.cpu().numpy(), self.us.T.cpu().numpy())
             utest_rl2 = relative_err(utest_Pred.detach().T.cpu().numpy(), self.uTest.T.cpu().numpy())
 
@@ -218,6 +221,12 @@ if __name__ == '__main__':
                         help='number of training samples')
     parser.add_argument('--nTest', type=int, default=200, 
                         help='number of test samples')
+    parser.add_argument('--res', type=int, default=20, 
+                        help='mesh density')
+    parser.add_argument('--sigma', type=str, default='2e-01', 
+                        help='number of test samples')
+    parser.add_argument('--param', type=float, default=1,
+                        help='mesh density')
     parser.add_argument('--device', type=int, default=0,
                         help='device id.')
     args = parser.parse_args()
@@ -235,47 +244,39 @@ if __name__ == '__main__':
     elif args.task == 'poisson2D':
         from utils import load_poisson2d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
+        args.param = 'x'
     elif args.task == 'helmholtz2D':
         from utils import load_helmholtz2d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
+        args.param = 'x'
     elif args.task == 'poisson2Dhdomain':
         from utils import load_poisson2dhdomain_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
+        args.param = 'x'    
     elif args.task == 'helmholtz2D':
         from utils import load_helmholtz2d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
+        args.param = 'x'
     elif args.task == 'helmholtz2Dhdomain':
         from utils import load_helmholtz2dhdomain_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'log3D':
-        from utils import load_log3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_log3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'logsin3D':
-        from utils import load_logsin3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_logsin3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'cos3D':
-        from utils import load_cos3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_cos3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'logcos3D':
-        from utils import load_logcos3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_logcos3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-
-    # import pdb 
-    # pdb.set_trace()
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
+        args.param = 'x'
 
     model = GLFitter(X=X, 
         fs=fTrain, us=uTrain, 
         fTest=fTest, uTest=uTest, 
         Gref=Gref, device=device)
+
+    # # save outputs
+    log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records('./results', args.task, 'gl-{:}-{:}-{:}'.format(args.nIter, args.nTrain, args.sigma))
+    if os.path.exists(upred_outpath):
+        print("********* ", args.task, "  ", upred_outpath, " file exists")
+        exit()
 
     # model train
     if "3D" in args.task:
@@ -285,8 +286,6 @@ if __name__ == '__main__':
     elif "2D" in args.task:
         model.optimize_adam(args.nIter)
 
-    # # save outputs
-    log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records('./results', args.task, 'gl-{:}-{:}'.format(args.nIter, args.nTrain))
 
     np.save(log_outpath, model.log)
     np.save(upred_outpath, model.utest_Pred)

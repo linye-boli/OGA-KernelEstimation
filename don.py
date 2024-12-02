@@ -63,12 +63,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='OGA for kernel estimation')
     parser.add_argument('--task', type=str, default='poisson1D',
                         help='dataset name. (poisson1D, helmholtz1D, airy1D, poisson2D)')
-    parser.add_argument('--nIter', type=int, default=2000, 
+    parser.add_argument('--nIter', type=int, default=20000, 
                         help='maximum number of neurons')
     parser.add_argument('--nTrain', type=int, default=200, 
                         help='number of training samples')
     parser.add_argument('--nTest', type=int, default=200, 
                         help='number of test samples')
+    parser.add_argument('--res', type=int, default=20, 
+                        help='mesh density')
+    parser.add_argument('--sigma', type=str, default='2e-1', 
+                        help='number of test samples')
+    parser.add_argument('--param', type=float, default=1,
+                        help='mesh density')
     args = parser.parse_args()
         
     if args.task == 'poisson1D':
@@ -84,33 +90,27 @@ if __name__ == '__main__':
     elif args.task == 'poisson2D':
         from utils import load_poisson2d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-        xs = scipy.io.loadmat('./data/mesh2D_disk.mat')['X']
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest,res=args.res, sigma=args.sigma)
+        args.param = 'x'
+        xs = scipy.io.loadmat(f'./data/mesh2D_disk_{args.res}.mat')['X']
     elif args.task == 'helmholtz2D':
         from utils import load_helmholtz2d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-        xs = scipy.io.loadmat('./data/mesh2D_disk.mat')['X']
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest,res=args.res, sigma=args.sigma)
+        args.param = 'x'
+        xs = scipy.io.loadmat(f'./data/mesh2D_disk_{args.res}.mat')['X']
     elif args.task == 'poisson2Dhdomain':
         from utils import load_poisson2dhdomain_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-        xs = scipy.io.loadmat('./data/mesh2D_h.mat')['X']
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest,res=args.res, sigma=args.sigma)
+        args.param = 'x'
+        xs = scipy.io.loadmat(f'./data/mesh2D_h_{args.res}.mat')['X']
     elif args.task == 'helmholtz2Dhdomain':
         from utils import load_helmholtz2dhdomain_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-        xs = scipy.io.loadmat('./data/mesh2D_h.mat')['X']
-    elif args.task == 'log3D':
-        from utils import load_log3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_log3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-        xs = scipy.io.loadmat('./data/mesh3D_box_17.mat')['X']
-    elif args.task == 'logsin3D':
-        from utils import load_logsin3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_logsin3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-        xs = scipy.io.loadmat('./data/mesh3D_box_17.mat')['X']
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest,res=args.res, sigma=args.sigma)
+        args.param = 'x'
+        xs = scipy.io.loadmat(f'./data/mesh2D_h_{args.res}.mat')['X']
     elif args.task == 'cos3D':
         from utils import load_cos3d_kernel_dataset
         fTrain, fTest, uTrain, uTest, X, Gref = load_cos3d_kernel_dataset(
@@ -127,11 +127,15 @@ if __name__ == '__main__':
         fs=fTrain, us=uTrain, 
         fTest=fTest, uTest=uTest)
 
+    # save outputs
+    log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records('./results', args.task, 'don-{:}-{:}-{:}-{:}'.format(args.nIter, args.nTrain, args.param, args.sigma))
+    if os.path.exists(log_outpath):
+        print("********* ", args.task, "  ", log_outpath, " file exists")
+        exit()
+
     # model train
     model.optimize_adam(args.nIter)
 
-    # # save outputs
-    log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records('./results', args.task, 'don-{:}-{:}'.format(args.nIter, args.nTrain))
 
     np.save(log_outpath, model.log)
     # np.save(upred_outpath, model.utest_Pred)

@@ -292,6 +292,14 @@ if __name__ == '__main__':
         fs=fTrain, us=uTrain, 
         fTest=fTest, uTest=uTest, 
         Gref=Gref, device=device)
+    
+    exp_nm = 'oga-{:}-{:}-{:}-{:}-{:}-{:}-relu'.format(args.nNeuron, args.nTrain, args.nr, args.res, args.param, args.sigma)
+    print(exp_nm)
+    log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records(
+        './results', args.task, exp_nm)
+    if os.path.exists(upred_outpath):
+        print("********* ", args.task, "  ", exp_nm, " file exists")
+        exit()
 
     # model train
     model.optimize_random(nr=args.nr)
@@ -300,10 +308,7 @@ if __name__ == '__main__':
     # if args.nr == 512 & args.res == 20:
     #     log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records('./results', args.task, 'oga-{:}-{:}-relu'.format(args.nNeuron, args.nTrain))
     # else:
-    exp_nm = 'oga-{:}-{:}-{:}-{:}-{:}-{:}-relu'.format(args.nNeuron, args.nTrain, args.nr, args.res, args.param, args.sigma)
-    print(exp_nm)
-    log_outpath, upred_outpath, model_outpath, Gpred_outpath = init_records(
-        './results', args.task, exp_nm)
+
     
 
     np.save(log_outpath, model.log)

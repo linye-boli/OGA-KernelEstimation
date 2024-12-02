@@ -230,87 +230,28 @@ if __name__ == '__main__':
                         help='mesh density')
     parser.add_argument('--nr', type=int, default=512, 
                         help='mesh density')
-    parser.add_argument('--sigma', type=str, default='2e-1', 
-                        help='number of test samples')
-    parser.add_argument('--param', type=float, default=1,
-                        help='mesh density')
     parser.add_argument('--device', type=int, default=0,
                         help='device id.')
+    parser.add_argument('--sigma_train', type=str, default='2e-1', 
+                        help='number of test samples')
+    parser.add_argument('--sigma_test', type=str, default='5e-1', 
+                        help='number of test samples')
     parser.add_argument("--mode", type=str, default='full')
     args = parser.parse_args()
     device = torch.device(f'cuda:{args.device}')
     # device = torch.device('cpu')     
 
-    if args.task == 'poisson1D':
-        from utils import load_poisson1d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_poisson1d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'helmholtz1D':
-        from utils import load_helmholtz1d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz1d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'cos2D':
-        from utils import load_cos2d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=args.param, res=args.res, sigma=args.sigma)
-    elif args.task == 'cos2Dhdomain':
-        from utils import load_cos2dhdomain_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_cos2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=args.param, res=args.res, sigma=args.sigma)
-    elif args.task == 'poisson2D':
-        from utils import load_poisson2d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
-        args.param = 'x'
-    elif args.task == 'poisson2Dhdomain':
-        from utils import load_poisson2dhdomain_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest,res=args.res, sigma=args.sigma)
-        args.param = 'x'
+    if args.task == 'poisson2D':
+        from utils import load_poisson2d_kernel_dataset_
+        fTrain, fTest, uTrain, uTest, X, Gref = load_poisson2d_kernel_dataset_(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma_train, sigma_test=args.sigma_test)
     elif args.task == 'helmholtz2D':
-        from utils import load_helmholtz2d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
-        args.param = 'x'
-    elif args.task == 'helmholtz2Dhdomain':
-        from utils import load_helmholtz2dhdomain_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2dhdomain_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
-        args.param = 'x'
-    elif args.task == 'helmholtz3D':
-        from utils import load_helmholtz3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
-        args.param = 'x'
-    elif args.task == 'poisson3D':
-        from utils import load_poisson3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_poisson3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
-        args.param = 'x'
-    elif args.task == 'inv3D':
-        from utils import load_inv3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_inv3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'log3D':
-        from utils import load_log3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_log3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma)
-        args.param = 'x'
-    elif args.task == 'logsin3D':
-        from utils import load_logsin3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_logsin3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest)
-    elif args.task == 'logcos3D':
-        from utils import load_logcos3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_logcos3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=args.param, res=args.res, sigma=args.sigma)
-    elif args.task == 'cos3D':
-        from utils import load_cos3d_kernel_dataset
-        fTrain, fTest, uTrain, uTest, X, Gref = load_cos3d_kernel_dataset(
-            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, n=args.param, res=args.res, sigma=args.sigma)
+        from utils import load_helmholtz2d_kernel_dataset_
+        fTrain, fTest, uTrain, uTest, X, Gref = load_helmholtz2d_kernel_dataset_(
+            data_root='./data', nTrain=args.nTrain, nTest=args.nTest, res=args.res, sigma=args.sigma_train, sigma_test=args.sigma_test)
 
     # save outputs
-    exp_nm = 'ogapw-{:}-{:}-{:}-{:}-{:}-{:}-relu'.format(args.nNeuron, args.nTrain, args.nr, args.res, args.param, args.sigma)
+    exp_nm = 'ogapwdd-{:}-{:}-{:}-{:}-{:}-{:}-relu'.format(args.nNeuron, args.nTrain, args.nr, args.res, args.sigma_train, args.sigma_test)
     print(exp_nm)
     if args.mode == 'sub':
         exp_root = './results_sub'
